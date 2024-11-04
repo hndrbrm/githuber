@@ -1,61 +1,57 @@
-import 'package:args/args.dart';
+import 'dart:convert';
+import 'dart:io';
 
-const String version = '0.0.1';
+import 'package:github/github.dart';
+import 'package:http/http.dart' as http;
 
-ArgParser buildParser() {
-  return ArgParser()
-    ..addFlag(
-      'help',
-      abbr: 'h',
-      negatable: false,
-      help: 'Print this usage information.',
-    )
-    ..addFlag(
-      'verbose',
-      abbr: 'v',
-      negatable: false,
-      help: 'Show additional command output.',
-    )
-    ..addFlag(
-      'version',
-      negatable: false,
-      help: 'Print the tool version.',
-    );
-}
+import 'argument.dart';
 
-void printUsage(ArgParser argParser) {
-  print('Usage: dart githuber.dart <flags> [arguments]');
-  print(argParser.usage);
-}
+Future<void> main(List<String> arguments) async {
+  final argument = Argument.parse(arguments);
 
-void main(List<String> arguments) {
-  final ArgParser argParser = buildParser();
-  try {
-    final ArgResults results = argParser.parse(arguments);
-    bool verbose = false;
+  // final github = GitHub();
+  final github = GitHub();
+  final slug = RepositorySlug(
+    argument.github.username,
+    argument.github.repository,
+  );
 
-    // Process the parsed arguments.
-    if (results.wasParsed('help')) {
-      printUsage(argParser);
-      return;
-    }
-    if (results.wasParsed('version')) {
-      print('githuber version: $version');
-      return;
-    }
-    if (results.wasParsed('verbose')) {
-      verbose = true;
+  await for (var release in github.repositories.listReleases(slug)) {
+    final releaseDir = Directory('release/${release.tagName!}');
+    if (!await releaseDir.exists()) {
+      await releaseDir.create(recursive: true);
     }
 
-    // Act on the arguments provided.
-    print('Positional arguments: ${results.rest}');
-    if (verbose) {
-      print('[VERBOSE] All arguments: ${results.arguments}');
+    final file = File('${releaseDir.path}/info.json');
+    if (!(await file.exists()) || argument.overwrite) {
+      stdout.write("Saving '${release.tagName}/info.json'...");
+      await file.writeAsString(jsonEncode(release.toJson()));
+      stdout.writeln(' OK');
+    } else {
+      print("Skip '${release.tagName}/info.json'");
     }
-  } on FormatException catch (e) {
-    // Print usage information if an invalid argument was provided.
-    print(e.message);
-    print('');
-    printUsage(argParser);
+
+    if (release.assets != null && release.assets!.isNotEmpty) {
+      final assetDir = Directory('${releaseDir.path}/asset');
+      if (!await assetDir.exists()) {
+        assetDir.create(recursive: true);
+      }
+
+      for (var asset in release.assets!) {
+        final file = File('${assetDir.path}/${asset.name}');
+        if (!(await file.exists()) || argument.overwrite) {
+          stdout.write("  Downloading '${asset.name}...");
+          final response = await http.get(Uri.parse(asset.browserDownloadUrl!));
+          if (response.statusCode == 200) {
+            await file.writeAsBytes(response.bodyBytes);
+            stdout.writeln(' OK');
+          } else {
+            stdout.writeln(' FAILED');
+          }
+        } else {
+          print("  Skip '${asset.name}'");
+        }
+      }
+    }
   }
 }

@@ -1,0 +1,51 @@
+name: Build Githuber binaries
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          repository: hndrbrm/githuber
+          path: githuber
+
+      - name: Dart Installation
+        uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - name: Build Binaries
+        run: |
+          cd $GITHUB_WORKSPACE/githuber
+          dart pub get
+          dart compile exe bin/githuber.dart
+
+      - name: Generate Tag
+        id: tag
+        run: |
+          cd $GITHUB_WORKSPACE/githuber
+          VERSION=$(sed -n 's/^version: \([0-9]*\.[0-9]*\.[0-9]*\).*$/\1/p' $GITHUB_WORKSPACE/githuber/pubspec.yaml)
+          RELEASE_TAG=githuber_$VERSION
+          echo "release_tag=$RELEASE_TAG" >> $GITHUB_OUTPUT
+          echo "release_tag=$RELEASE_TAG"
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.tag.outputs.release_tag }}
+          files: |
+            bin/githuber.exe
+
+#          cd $GITHUB_WORKSPACE/githuber
+#          chmod +x bin/*.exe
+#          export TARGET_GZ=${{ steps.tag.outputs.release_tag }}.tar.gz
+#          tar -czvf $TARGET_GZ bin/*.exe
+#          gh release upload ${{ steps.tag.outputs.release_tag }} $TARGET_GZ

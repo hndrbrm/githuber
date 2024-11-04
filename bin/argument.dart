@@ -68,6 +68,8 @@ final class Argument {
   final bool verbose;
   final bool overwrite;
 
+  // This should be equal to pubspec.yaml
+  // Theres still no good mechanism to synchronize this variable.
   static const String _version = '0.0.1';
 
   static ArgParser _parser() => ArgParser()

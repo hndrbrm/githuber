@@ -40,7 +40,7 @@ Future<void> main(List<String> arguments) async {
       for (var asset in release.assets!) {
         final file = File('${assetDir.path}/${asset.name}');
         if (!(await file.exists()) || argument.overwrite) {
-          stdout.write("  Downloading '${asset.name}...");
+          stdout.write("  Downloading '${asset.name}'...");
           final response = await http.get(Uri.parse(asset.browserDownloadUrl!));
           if (response.statusCode == 200) {
             await file.writeAsBytes(response.bodyBytes);
